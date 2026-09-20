@@ -1,0 +1,22 @@
+# Nada de credencial, wallet ou dado
+*.wallet
+*.p12
+*.pem
+*.key
+*.sso
+wallet/
+.env
+.env.*
+tnsnames.ora
+
+# Export completo do APEX e dumps ficam fora deste repositorio
+f*.zip
+*.dmp
+*.dump
+
+# OS e editores
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*~
