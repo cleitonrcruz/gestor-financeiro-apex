@@ -234,9 +234,7 @@ CREATE OR REPLACE PACKAGE BODY         "PKG_AUTH" AS
     RETURN NULL;
   END valida_complexidade;
 
-  ----------------------------------------------------------------------
   -- autenticar: usa cfg_max_failed() e cfg_pwd_expire_days()
-  ----------------------------------------------------------------------
   FUNCTION autenticar(p_username IN VARCHAR2, p_password IN VARCHAR2) RETURN BOOLEAN IS
     l_row cfg_usuarios_autorizados%ROWTYPE;
     l_lookup_key VARCHAR2(255) := UPPER(TRIM(p_username));
@@ -470,9 +468,7 @@ CREATE OR REPLACE PACKAGE BODY         "PKG_AUTH" AS
     revogar_acesso(p_id, 'troca de senha pelo usuario');
   END alterar_senha;
 
-  ----------------------------------------------------------------------
   -- bloquear_conta / desbloquear_conta (admin events - sempre logam)
-  ----------------------------------------------------------------------
   PROCEDURE bloquear_conta(p_id IN NUMBER, p_solicitante_id IN NUMBER, p_motivo IN VARCHAR2 DEFAULT NULL) IS
     l_row cfg_usuarios_autorizados%ROWTYPE;
   BEGIN
