@@ -1,16 +1,16 @@
 # Gestor Financeiro
 
-Aplicação de gestão financeira pessoal e de pessoa jurídica construída em **Oracle APEX** sobre **Autonomous Database**, em produção e em uso diário.
+<p align="justify">Aplicação de gestão financeira pessoal e de pessoa jurídica construída em <b>Oracle APEX</b> sobre <b>Autonomous Database</b>, em produção e em uso diário.</p>
 
 **[Abrir a demonstração](https://gd9477458323ab8-gestorfin.adb.sa-saopaulo-1.oraclecloudapps.com/ords/r/gestor_financeiro/gestor-financeiro/)**. Usuário `demo`, senha `demo`.
 
-A conta de demonstração tem dados fictícios e é restaurada todo dia de madrugada. Fique à vontade para criar, editar e excluir.
+<p align="justify">A conta de demonstração tem dados fictícios e é restaurada todo dia de madrugada. Fique à vontade para criar, editar e excluir.</p>
 
 ![Dashboard](docs/img/dashboard.webp)
 
 ## O que faz
 
-Lançamentos de receita e despesa separados por pessoa física e jurídica, com regime de competência e de caixa; dívidas parceladas com recálculo de parcelas e baixa vinculada ao lançamento; anexos por lançamento; notificações de vencimento por e-mail e push; e um dashboard com indicadores do período, fluxo de doze meses e categorias mais pesadas.
+<p align="justify">Lançamentos de receita e despesa separados por pessoa física e jurídica, com regime de competência e de caixa; dívidas parceladas com recálculo de parcelas e baixa vinculada ao lançamento; anexos por lançamento; notificações de vencimento por e-mail e push; e um dashboard com indicadores do período, fluxo de doze meses e categorias mais pesadas.</p>
 
 ## Stack
 
@@ -18,15 +18,15 @@ Oracle APEX 26.1 · Oracle Autonomous Database 23ai · ORDS · PL/SQL · JavaScr
 
 ## Decisões técnicas que valem a leitura
 
-**Controle de acesso e conteúdo.** Lançamentos, dívidas, parcelas, anexos e notificações têm política de VPD (`DBMS_RLS`), com o predicado vindo de `PKG_RLS` e `update_check` ligado, então cada usuário só enxerga as próprias linhas. O predicado é aplicado pelo banco, não pela tela, então vale também para o que chega por parâmetro de requisição e não só para o que a página consulta. O código está em [`db/security/01_rls_policies.sql`](db/security/01_rls_policies.sql) e [`db/packages/pkg_rls.sql`](db/packages/pkg_rls.sql).
+<p align="justify"><b>Controle de acesso e conteúdo.</b> Lançamentos, dívidas, parcelas, anexos e notificações têm política de VPD (<code>DBMS_RLS</code>), com o predicado vindo de <code>PKG_RLS</code> e <code>update_check</code> ligado, então cada usuário só enxerga as próprias linhas. O predicado é aplicado pelo banco, não pela tela, então vale também para o que chega por parâmetro de requisição e não só para o que a página consulta. O código está em <a href="db/security/01_rls_policies.sql"><code>db/security/01_rls_policies.sql</code></a> e <a href="db/packages/pkg_rls.sql"><code>db/packages/pkg_rls.sql</code></a>.</p>
 
-**Autenticação própria.** Esquema custom com hash e salt por usuário (`PKG_AUTH`), bloqueio por tentativas, expiração de senha, troca forçada no primeiro acesso e trilha de eventos de login. Inclui o "manter conectado" do APEX com revogação de token ao desativar, trocar papel ou resetar senha de uma conta.
+<p align="justify"><b>Autenticação própria.</b> Esquema custom com hash e salt por usuário (<code>PKG_AUTH</code>), bloqueio por tentativas, expiração de senha, troca forçada no primeiro acesso e trilha de eventos de login. Inclui o "manter conectado" do APEX com revogação de token ao desativar, trocar papel ou resetar senha de uma conta.</p>
 
-**Fila offline idempotente.** O app é um PWA instalável; sem rede, os lançamentos vão para uma fila em IndexedDB e sobem quando a conexão volta. A idempotência não depende do cliente: um índice único funcional sobre `external_id` garante que reenviar a mesma fila duas vezes não duplica nada. Ver [`pwa/`](pwa/) e [`db/security/02_indice_idempotencia_offline.sql`](db/security/02_indice_idempotencia_offline.sql).
+<p align="justify"><b>Fila offline idempotente.</b> O app é um PWA instalável; sem rede, os lançamentos vão para uma fila em IndexedDB e sobem quando a conexão volta. A idempotência não depende do cliente: um índice único funcional sobre <code>external_id</code> garante que reenviar a mesma fila duas vezes não duplica nada. Ver <a href="pwa/"><code>pwa/</code></a> e <a href="db/security/02_indice_idempotencia_offline.sql"><code>db/security/02_indice_idempotencia_offline.sql</code></a>.</p>
 
-**Plug-in de verdade, não JavaScript colado na página.** O tooltip da aplicação é um plug-in de Dynamic Action com render function em PL/SQL, atributos configuráveis no Page Designer e cores saindo de variáveis do Universal Theme, então sobrevive a troca de theme style. O instalável em [`apex/plugin/`](apex/plugin/) sai do export do App Builder, nunca escrito à mão.
+<p align="justify"><b>Plug-in de verdade, não JavaScript colado na página.</b> O tooltip da aplicação é um plug-in de Dynamic Action com render function em PL/SQL, atributos configuráveis no Page Designer e cores saindo de variáveis do Universal Theme, então sobrevive a troca de theme style. O instalável em <a href="apex/plugin/"><code>apex/plugin/</code></a> sai do export do App Builder, nunca escrito à mão.</p>
 
-**Regra de negócio no banco.** Nenhum CRUD em processo de página: tudo passa por package (`PKG_FIN_LANCAMENTOS`, `PKG_FIN_DIVIDAS`, `PKG_FIN_NOTIF`, `PKG_CFG_*`), o que mantém a regra fora da tela e testável por SQL.
+<p align="justify"><b>Regra de negócio no banco.</b> Nenhum CRUD em processo de página: tudo passa por package (<code>PKG_FIN_LANCAMENTOS</code>, <code>PKG_FIN_DIVIDAS</code>, <code>PKG_FIN_NOTIF</code>, <code>PKG_CFG_*</code>), o que mantém a regra fora da tela e testável por SQL.</p>
 
 ## Organização
 
@@ -41,4 +41,4 @@ Oracle APEX 26.1 · Oracle Autonomous Database 23ai · ORDS · PL/SQL · JavaScr
 
 ## Sobre este repositório
 
-É um recorte do projeto, não a aplicação inteira. Está aqui o que se lê como código: modelo de dados, regra de negócio e os componentes que valem reuso. O export completo do APEX, os scripts de migração e os dados ficam de fora por conterem informação financeira real. Ficam de fora também quatro utilitários chamados pelos pacotes daqui: `f_app_pref`, que lê parâmetro de configuração, `f_now_brt`, que devolve a data no fuso de Brasília, `f_categoria_default_divida` e o pacote `pkg_manutencao`, de expurgo.
+<p align="justify">É um recorte do projeto, não a aplicação inteira. Está aqui o que se lê como código: modelo de dados, regra de negócio e os componentes que valem reuso. O export completo do APEX, os scripts de migração e os dados ficam de fora por conterem informação financeira real. Ficam de fora também quatro utilitários chamados pelos pacotes daqui: <code>f_app_pref</code>, que lê parâmetro de configuração, <code>f_now_brt</code>, que devolve a data no fuso de Brasília, <code>f_categoria_default_divida</code> e o pacote <code>pkg_manutencao</code>, de expurgo.</p>
