@@ -42,3 +42,8 @@ Oracle APEX 26.1 · Oracle Autonomous Database 23ai · ORDS · PL/SQL · JavaScr
 ## Sobre este repositório
 
 <p align="justify">É um recorte do projeto, não a aplicação inteira. Está aqui o que se lê como código: modelo de dados, regra de negócio e os componentes que valem reuso. O export completo do APEX, os scripts de migração e os dados ficam de fora por conterem informação financeira real. Ficam de fora também quatro utilitários chamados pelos pacotes daqui: <code>f_app_pref</code>, que lê parâmetro de configuração, <code>f_now_brt</code>, que devolve a data no fuso de Brasília, <code>f_categoria_default_divida</code> e o pacote <code>pkg_manutencao</code>, de expurgo.</p>
+
+## Autor
+
+Cleiton Cruz, desenvolvedor Oracle APEX e PL/SQL.
+[linkedin.com/in/cleitonrcruz](https://www.linkedin.com/in/cleitonrcruz/)
