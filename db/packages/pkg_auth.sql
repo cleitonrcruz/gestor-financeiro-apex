@@ -100,6 +100,55 @@ CREATE OR REPLACE PACKAGE BODY         "PKG_AUTH" AS
     RETURN NVL(UPPER(l_v),'S') = 'S';
   END cfg_audit_login;
 
+  FUNCTION origem_ip_requisicao RETURN VARCHAR2 IS
+    l_hdr VARCHAR2(4000);
+    l_ip  VARCHAR2(4000);  -- largo de proposito: o corte e so no RETURN
+  BEGIN
+    -- sys_context da o IP do balanceador, igual para todos. O real vem no X-Forwarded-For.
+    -- get_cgi_env levanta fora de requisicao HTTP, dai os handlers.
+    BEGIN l_hdr := owa_util.get_cgi_env('X-Forwarded-For');
+    EXCEPTION WHEN OTHERS THEN l_hdr := NULL; END;
+
+    IF l_hdr IS NULL THEN
+      BEGIN l_hdr := owa_util.get_cgi_env('HTTP_X_FORWARDED_FOR');
+      EXCEPTION WHEN OTHERS THEN l_hdr := NULL; END;
+    END IF;
+
+    -- Ultimo item: e o que o balanceador escreveu, o cliente nao forja.
+    IF l_hdr IS NOT NULL THEN
+      l_ip := TRIM(REGEXP_SUBSTR(l_hdr, '[^,]+$'));
+    END IF;
+
+    -- SUBSTRB e nao SUBSTR: a coluna tem 60 BYTES e o cabecalho vem de fora.
+    RETURN SUBSTRB(NVL(l_ip,
+             NVL(sys_context('APEX$SESSION','IP_ADDRESS'),
+                 sys_context('USERENV','IP_ADDRESS'))), 1, 60);
+  EXCEPTION WHEN OTHERS THEN
+    -- Nunca derrubar o registro de autenticacao por causa da origem.
+    RETURN SUBSTRB(NVL(sys_context('APEX$SESSION','IP_ADDRESS'),
+                       sys_context('USERENV','IP_ADDRESS')), 1, 60);
+  END origem_ip_requisicao;
+
+  FUNCTION origem_user_agent_requisicao RETURN VARCHAR2 IS
+    l_ua VARCHAR2(4000);
+  BEGIN
+    -- MODULE da o modulo Oracle, igual para todo acesso pelo app. O real vem no User-Agent.
+    -- get_cgi_env levanta fora de requisicao HTTP, dai os handlers.
+    BEGIN l_ua := owa_util.get_cgi_env('User-Agent');
+    EXCEPTION WHEN OTHERS THEN l_ua := NULL; END;
+
+    IF l_ua IS NULL THEN
+      BEGIN l_ua := owa_util.get_cgi_env('HTTP_USER_AGENT');
+      EXCEPTION WHEN OTHERS THEN l_ua := NULL; END;
+    END IF;
+
+    -- SUBSTRB e nao SUBSTR: a coluna tem 500 BYTES e o cabecalho vem de fora.
+    RETURN SUBSTRB(NVL(l_ua, sys_context('USERENV','MODULE')), 1, 500);
+  EXCEPTION WHEN OTHERS THEN
+    -- Nunca derrubar o registro de autenticacao por causa da origem.
+    RETURN SUBSTRB(sys_context('USERENV','MODULE'), 1, 500);
+  END origem_user_agent_requisicao;
+
 -- Evento LOGIN_* so entra se a pref sec_audit_login_attempts estiver ligada.
   PROCEDURE log_evento(
     p_evento        IN VARCHAR2,
@@ -111,6 +160,8 @@ CREATE OR REPLACE PACKAGE BODY         "PKG_AUTH" AS
   ) IS
     PRAGMA AUTONOMOUS_TRANSACTION;
     l_solic_user VARCHAR2(255);
+    l_origem_ip  VARCHAR2(60);
+    l_origem_ua  VARCHAR2(500);
   BEGIN
     IF p_evento LIKE 'LOGIN_%' AND NOT cfg_audit_login() THEN
       RETURN;
@@ -119,13 +170,16 @@ CREATE OR REPLACE PACKAGE BODY         "PKG_AUTH" AS
     BEGIN SELECT username INTO l_solic_user FROM cfg_usuarios_autorizados WHERE id = p_realizado_por;
     EXCEPTION WHEN NO_DATA_FOUND THEN l_solic_user := NULL; END;
 
+    l_origem_ip := origem_ip_requisicao();
+    l_origem_ua := origem_user_agent_requisicao();
+
     INSERT INTO log_auth_eventos (
       evento, usuario_id, username, email, origem_ip, origem_user_agent, origem_session,
       realizado_por, realizado_por_username, detalhes
     ) VALUES (
       p_evento, p_usuario_id, p_username, p_email,
-      SUBSTR(NVL(sys_context('APEX$SESSION','IP_ADDRESS'), sys_context('USERENV','IP_ADDRESS')),1,60),
-      SUBSTR(sys_context('USERENV','MODULE'),1,500),
+      l_origem_ip,
+      l_origem_ua,
       SUBSTR(NVL(sys_context('APEX$SESSION','APP_SESSION'), sys_context('USERENV','SESSIONID')),1,60),
       p_realizado_por, l_solic_user,
       p_detalhes
