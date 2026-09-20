@@ -106,9 +106,17 @@ CREATE OR REPLACE PACKAGE BODY         "PKG_FIN_NOTIF" AS
       || lit(l_username) || '); ' ||
       '  admin.pkg_fin_notif.enviar_email(p_user_id=>' || TO_CHAR(p_user_id) ||
       ',p_template_static=>' || lit(p_template_static) ||
-      ',p_placeholders=>' || lit(TO_CHAR(p_placeholders)) || '); ' ||
+      ',p_placeholders=>' || lit(DBMS_LOB.SUBSTR(p_placeholders, 3000, 1)) || '); ' ||
       '  COMMIT; ' ||
       'END;';
+    -- job_action do scheduler e VARCHAR2(4000). Sem esta checagem o estouro vira erro
+    -- generico do scheduler, sem dizer qual template passou do tamanho.
+    IF LENGTH(l_action) > 4000 THEN
+      raise_application_error(-20050,
+        'Bloco do e-mail assincrono passou de 4000 caracteres (' || LENGTH(l_action) ||
+        '). Template: ' || p_template_static);
+    END IF;
+
     dbms_scheduler.create_job(
       job_name   => l_job_name,
       job_type   => 'PLSQL_BLOCK',

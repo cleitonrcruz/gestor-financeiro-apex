@@ -32,7 +32,7 @@
 
 ## Decisões técnicas que valem a leitura
 
-<p align="justify"><b>Controle de acesso e conteúdo.</b> Lançamentos, dívidas, parcelas, anexos e notificações têm política de VPD (<code>DBMS_RLS</code>), com o predicado vindo de <code>PKG_RLS</code> e <code>update_check</code> ligado, então cada usuário só enxerga as próprias linhas. O predicado é aplicado pelo banco, não pela tela, então vale também para o que chega por parâmetro de requisição e não só para o que a página consulta. O código está em <a href="db/security/01_rls_policies.sql"><code>db/security/01_rls_policies.sql</code></a> e <a href="db/packages/pkg_rls.sql"><code>db/packages/pkg_rls.sql</code></a>.</p>
+<p align="justify"><b>Controle de acesso e conteúdo.</b> Toda tabela que guarda dado de usuário tem política de VPD (<code>DBMS_RLS</code>), com o predicado vindo de <code>PKG_RLS</code> e <code>update_check</code> ligado, então cada usuário só enxerga as próprias linhas. O predicado é aplicado pelo banco, não pela tela, então vale também para o que chega por parâmetro de requisição e não só para o que a página consulta. O código está em <a href="db/security/01_rls_policies.sql"><code>db/security/01_rls_policies.sql</code></a> e <a href="db/packages/pkg_rls.sql"><code>db/packages/pkg_rls.sql</code></a>.</p>
 
 <p align="justify"><b>Autenticação própria.</b> Esquema custom com hash e salt por usuário (<code>PKG_AUTH</code>), bloqueio por tentativas, expiração de senha, troca forçada no primeiro acesso e trilha de eventos de login. Inclui o "manter conectado" do APEX com revogação de token ao desativar, trocar papel ou resetar senha de uma conta.</p>
 
