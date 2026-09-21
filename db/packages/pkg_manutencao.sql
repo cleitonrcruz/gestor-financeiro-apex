@@ -66,6 +66,9 @@ CREATE OR REPLACE PACKAGE BODY       pkg_manutencao AS
     l_cut := admin.f_now_brt - NUMTODSINTERVAL(l_dias, 'DAY');
     DELETE FROM admin.log_auth_eventos WHERE ts < l_cut;
     p_log_auth_del := SQL%ROWCOUNT;
+    -- o registro da API segue a mesma retencao do log de autenticacao
+    DELETE FROM admin.log_api_chamadas WHERE ts < l_cut;
+    p_log_auth_del := p_log_auth_del + SQL%ROWCOUNT;
 
     BEGIN l_dias := TO_NUMBER(admin.f_app_pref('cleanup_notif_dias')); EXCEPTION WHEN OTHERS THEN l_dias := NULL; END;
     IF l_dias IS NULL OR l_dias <= 0 THEN l_dias := 60; END IF;

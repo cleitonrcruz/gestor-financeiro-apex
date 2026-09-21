@@ -17,7 +17,7 @@
 
 ## O que faz
 
-<p align="justify">Lançamentos de receita e despesa separados por pessoa física e jurídica, com regime de competência e de caixa; dívidas parceladas com recálculo de parcelas e baixa vinculada ao lançamento; anexos por lançamento; notificações de vencimento por e-mail e push; um dashboard com indicadores do período, fluxo de doze meses e categorias mais pesadas; e uma tela de acessos que mostra quem entrou, de onde, com que aparelho, e as tentativas que falharam.</p>
+<p align="justify">Lançamentos de receita e despesa separados por pessoa física e jurídica, com regime de competência e de caixa; dívidas parceladas com recálculo de parcelas e baixa vinculada ao lançamento; anexos por lançamento; notificações de vencimento por e-mail e push; um dashboard com indicadores do período, fluxo de doze meses e categorias mais pesadas; uma tela de acessos que mostra quem entrou, de onde, com que aparelho, e as tentativas que falharam; e uma página com a documentação e o uso da API REST.</p>
 
 ## Stack
 
@@ -25,24 +25,19 @@
 |---|---|
 | Banco | Oracle AI Database 26ai Autonomous, versão 23.26.3.3.0, região sa-saopaulo-1 |
 | Aplicação | Oracle APEX 26.1.4, modo de compatibilidade 24.2 |
-| REST | ORDS, com OpenAPI 3.0 gerado pelo próprio servidor |
+| REST | ORDS, com contrato OpenAPI 3.0 e Swagger UI |
 | Front-end | Universal Theme 42, JavaScript, HTML e CSS |
 | Offline | PWA instalável, com fila em IndexedDB |
 | Notificações | Web Push nativo do APEX e e-mail por template |
 
 ## Decisões técnicas
 
-<p align="justify"><b>Controle de acesso e conteúdo.</b> Toda tabela que guarda dado de usuário tem política de VPD (<code>DBMS_RLS</code>), com o predicado vindo de <code>PKG_RLS</code> e <code>update_check</code> ligado, então cada usuário só enxerga as próprias linhas. O predicado é aplicado pelo banco, não pela tela, então vale também para o que chega por parâmetro de requisição e não só para o que a página consulta. O código está em <a href="db/security/01_rls_policies.sql"><code>db/security/01_rls_policies.sql</code></a> e <a href="db/packages/pkg_rls.sql"><code>db/packages/pkg_rls.sql</code></a>.</p>
-
-<p align="justify"><b>Autenticação própria.</b> Esquema custom com hash e salt por usuário (<code>PKG_AUTH</code>), bloqueio por tentativas, expiração de senha, troca forçada no primeiro acesso e trilha de eventos de login. Inclui o "manter conectado" do APEX com revogação de token ao desativar, trocar papel ou resetar senha de uma conta.</p>
-
-<p align="justify"><b>A origem do acesso vem do cabeçalho, não do banco.</b> Atrás do balanceador da OCI, <code>sys_context</code> devolve sempre o mesmo endereço, e o módulo Oracle no lugar do navegador. O pacote lê <code>X-Forwarded-For</code> e <code>User-Agent</code> da requisição, pegando o último item da lista, que é o que a infraestrutura escreveu e o cliente não forja. Fora de uma requisição HTTP a leitura falha por desenho e o valor antigo continua valendo, então job e script não quebram.</p>
-
-<p align="justify"><b>Fila offline idempotente.</b> O app é um PWA instalável; sem rede, os lançamentos vão para uma fila em IndexedDB e sobem quando a conexão volta. A idempotência não depende do cliente: um índice único funcional sobre <code>external_id</code> garante que reenviar a mesma fila duas vezes não duplica nada. Ver <a href="pwa/"><code>pwa/</code></a> e <a href="db/security/02_indice_idempotencia_offline.sql"><code>db/security/02_indice_idempotencia_offline.sql</code></a>.</p>
-
-<p align="justify"><b>Plug-in de verdade, não JavaScript colado na página.</b> O tooltip da aplicação é um plug-in de Dynamic Action com render function em PL/SQL, atributos configuráveis no Page Designer e cores saindo de variáveis do Universal Theme, então sobrevive a troca de theme style. O instalável em <a href="apex/plugin/"><code>apex/plugin/</code></a> sai do export do App Builder, nunca escrito à mão.</p>
-
-<p align="justify"><b>Regra de negócio no banco.</b> Nenhum CRUD em processo de página: tudo passa por package (<code>PKG_FIN_LANCAMENTOS</code>, <code>PKG_FIN_DIVIDAS</code>, <code>PKG_FIN_NOTIF</code>, <code>PKG_CFG_*</code>), o que mantém a regra fora da tela e testável por SQL.</p>
+- Segurança por linha com VPD (`DBMS_RLS`) em toda tabela com dado de usuário. O predicado fica em [`PKG_RLS`](db/packages/pkg_rls.sql) e as políticas em [`01_rls_policies.sql`](db/security/01_rls_policies.sql).
+- Autenticação própria em `PKG_AUTH`: hash com salt, bloqueio por tentativas, expiração de senha e "manter conectado" com revogação.
+- IP e navegador de cada acesso lidos de `X-Forwarded-For` e `User-Agent`, porque atrás do balanceador da OCI o `sys_context` devolve sempre o mesmo endereço.
+- PWA com fila offline em IndexedDB. Um índice único em `external_id` impede que o reenvio duplique lançamentos ([`pwa/`](pwa/)).
+- Tooltip feito como plug-in de Dynamic Action, com cores do Universal Theme ([`apex/plugin/`](apex/plugin/)).
+- Regra de negócio toda em package. Nenhum processo de página faz CRUD.
 
 ## API REST
 
@@ -68,8 +63,9 @@ curl -H "Accept: application/json" https://gd9477458323ab8-gestorfin.adb.sa-saop
 | GET | `/v1/categorias` | aberta |
 | GET | `/v1/resumo` | aberta |
 | POST | `/v1/ingest/lancamentos` | OAuth2 |
+| GET | `/v1/openapi.json` | aberta |
 
-<p align="justify">A especificação OpenAPI 3.0 é gerada pelo próprio ORDS em <a href="https://gd9477458323ab8-gestorfin.adb.sa-saopaulo-1.oraclecloudapps.com/ords/gestor_financeiro/open-api-catalog/v1/"><code>open-api-catalog/v1/</code></a>.</p>
+<p align="justify">O contrato OpenAPI 3.0 é servido pela própria API em <a href="https://gd9477458323ab8-gestorfin.adb.sa-saopaulo-1.oraclecloudapps.com/ords/gestor_financeiro/v1/openapi.json"><code>/v1/openapi.json</code></a>, e o arquivo fica em <a href="ords/openapi_v1.json"><code>ords/openapi_v1.json</code></a>. Ele é escrito à mão: o documento que o ORDS gera sozinho repete a mesma descrição genérica em todas as rotas e não traz as respostas de erro. Na aplicação, a página API REST mostra o contrato no Swagger UI, junto com os indicadores de uso.</p>
 
 ### Escrita
 
@@ -96,17 +92,38 @@ curl -i -X POST https://gd9477458323ab8-gestorfin.adb.sa-saopaulo-1.oracleclouda
 
 ### Implementação
 
-<p align="justify"><b>Handlers sem SQL.</b> Cada handler chama uma rotina de <a href="db/packages/pkg_api_v1.sql"><code>PKG_API_V1</code></a> e devolve o JSON montado por ela. A conta de demonstração é fixa no pacote e nenhuma rotina recebe id de usuário, então não há parâmetro que dê acesso a outra conta. Um lançamento de outra conta retorna <code>404</code>, sem indicar se ele existe.</p>
+- Os handlers não têm SQL: chamam [`PKG_API_V1`](db/packages/pkg_api_v1.sql), que tem a conta demo fixa e não recebe id de usuário. Lançamento de outra conta dá `404`.
+- O filtro da conta está escrito em cada consulta, porque fora do APEX a política de linha não se aplica.
+- A escrita fica em `/v1/ingest/` porque o privilégio do ORDS é por caminho.
+- Paginação por keyset: `next` traz a posição do último item.
+- ETag padrão do ORDS, com `304` quando o `If-None-Match` confere.
+- Cada chamada fica em `LOG_API_CHAMADAS` (método, rota, status, código e duração, sem IP) e alimenta a página da API. O `401` sem token não entra, porque o ORDS responde antes do pacote.
 
-<p align="justify"><b>Filtro explícito em vez de política de linha.</b> Fora de uma sessão APEX, o predicado de <a href="db/packages/pkg_rls.sql"><code>PKG_RLS</code></a> retorna <code>1=0</code>, e dentro do pacote, que roda com os privilégios de <code>ADMIN</code>, a política não se aplica. Por isso o filtro da conta está escrito em todas as consultas do pacote.</p>
+### Erros
 
-<p align="justify"><b>Prefixo separado para a escrita.</b> No ORDS, o privilégio é associado a um padrão de URI ou a um módulo, não a um método HTTP. Para manter o <code>GET</code> aberto e o <code>POST</code> protegido, a escrita fica em <code>/v1/ingest/</code>, que é o padrão coberto pelo privilégio.</p>
+<p align="justify">Os erros gerados pela API saem em <code>application/problem+json</code>, com um código estável no campo <code>code</code> e sem expor <code>ORA-</code>. Os gerados pelo ORDS antes do handler, como o <code>401</code> sem token, dependem do cabeçalho <code>Accept</code>: sem pedir JSON, clientes como o Postman recebem a página de erro em HTML. Por isso os exemplos enviam <code>Accept: application/json</code>.</p>
 
-<p align="justify"><b>Paginação por keyset.</b> A listagem ordena por data de competência e id, e o campo <code>next</code> traz a posição do último item. Diferente do <code>OFFSET</code>, a página não se desloca quando entram lançamentos novos.</p>
-
-<p align="justify"><b>ETag do ORDS.</b> Os templates usam o ETag padrão do ORDS, calculado sobre a resposta, que retorna <code>304</code> quando o <code>If-None-Match</code> confere. A opção por consulta de assinatura (<code>p_etag_type</code> <code>QUERY</code>) foi descartada porque teria de considerar o cursor de cada página.</p>
-
-<p align="justify"><b>Erros.</b> Os erros gerados pelo pacote saem em <code>application/problem+json</code>, com código próprio e sem expor <code>ORA-</code>. Os gerados pelo ORDS antes do handler, como o <code>401</code> sem token, dependem do cabeçalho <code>Accept</code>: sem pedir JSON, clientes como o Postman recebem a página de erro em HTML. Por isso os exemplos enviam <code>Accept: application/json</code>.</p>
+| Código | Status | Quando |
+|---|---|---|
+| `CURSOR_INVALIDO` | 400 | `cursor` fora do formato AAAAMMDD-id |
+| `ID_INVALIDO` | 400 | id não numérico |
+| `IDEMPOTENCY_KEY_AUSENTE` | 400 | POST sem `Idempotency-Key` |
+| `IDEMPOTENCY_KEY_LONGA` | 400 | `Idempotency-Key` acima de 100 caracteres |
+| `CORPO_INVALIDO` | 400 | corpo que não é JSON |
+| `NAO_ENCONTRADO` | 404 | lançamento inexistente ou de outra conta |
+| `DATA_INVALIDA` | 422 | data fora do formato AAAA-MM-DD ou da faixa aceita |
+| `PERIODO_INVALIDO` | 422 | data final anterior à inicial |
+| `TIPO_INVALIDO` | 422 | `tipo` diferente de R, DPF ou DPJ |
+| `DESCRICAO_AUSENTE` | 422 | `descricao` vazia |
+| `DESCRICAO_LONGA` | 422 | `descricao` acima de 255 caracteres |
+| `VALOR_INVALIDO` | 422 | `valor` ausente, zero, negativo ou a partir de 1 trilhão |
+| `DATA_COMPETENCIA_INVALIDA` | 422 | `data_competencia` ausente ou fora do formato |
+| `DATA_CAIXA_INVALIDA` | 422 | `data_caixa` fora do formato |
+| `OBSERVACOES_LONGA` | 422 | `observacoes` acima de 2000 caracteres |
+| `FORMA_PAGAMENTO_INVALIDA` | 422 | `forma_pagamento` fora da lista aceita |
+| `CATEGORIA_INVALIDA` | 422 | categoria inexistente para a demo ou de outro tipo |
+| `COTA_DIARIA` | 429 | 100 escritas no dia |
+| `ERRO_INTERNO` | 500 | falha inesperada |
 
 ## Organização
 
@@ -118,7 +135,7 @@ curl -i -X POST https://gd9477458323ab8-gestorfin.adb.sa-saopaulo-1.oracleclouda
 | `db/security` | Políticas de VPD, o índice de idempotência da fila offline e a view de acessos |
 | `db/jobs` | Jobs do scheduler: expurgo por retenção e geração diária de notificações |
 | `apex/plugin` | Plug-in de tooltip: instalável e render function |
-| `ords` | Módulo, templates, handlers, privilégio e cliente OAuth2 da API |
+| `ords` | Contrato OpenAPI, módulo, templates, handlers, privilégio e cliente OAuth2 da API |
 | `pwa` | Camada offline da página, a tela offline que o APEX embute no service worker que ele mesmo gera, e os dois processos de sincronização da fila |
 
 ## Sobre este repositório

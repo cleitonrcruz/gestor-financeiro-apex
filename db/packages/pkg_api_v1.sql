@@ -14,6 +14,7 @@ CREATE OR REPLACE PACKAGE pkg_api_v1 AS
   FUNCTION categorias RETURN CLOB;
   FUNCTION resumo(p_de  IN VARCHAR2 DEFAULT NULL,
                   p_ate IN VARCHAR2 DEFAULT NULL) RETURN CLOB;
+  FUNCTION contrato RETURN CLOB;
 
   PROCEDURE criar_lancamento(p_body     IN  CLOB,
                              p_idem_key IN  VARCHAR2,
@@ -37,6 +38,11 @@ END pkg_api_v1;
 CREATE OR REPLACE PACKAGE BODY pkg_api_v1 AS
 
   g_status NUMBER := 200;
+  -- Chamada em curso, para o registro em LOG_API_CHAMADAS.
+  g_metodo VARCHAR2(10);
+  g_rota   VARCHAR2(60);
+  g_codigo VARCHAR2(40);
+  g_inicio TIMESTAMP WITH TIME ZONE;
 
   -- Usar so via variavel: funcao privada do corpo nao pode ir dentro de SQL (PLS-00231).
   FUNCTION demo_user_id RETURN NUMBER IS
@@ -53,6 +59,7 @@ CREATE OR REPLACE PACKAGE BODY pkg_api_v1 AS
     l_json CLOB;
   BEGIN
     g_status := p_status;
+    g_codigo := p_code;
     SELECT JSON_OBJECT('type'   VALUE 'https://github.com/cleitonrcruz/gestor-financeiro-apex#erros',
                        'title'  VALUE p_title,
                        'status' VALUE p_status,
@@ -63,10 +70,44 @@ CREATE OR REPLACE PACKAGE BODY pkg_api_v1 AS
     RETURN l_json;
   END erro;
 
+  -- A resposta nao expoe o ORA; o registro guarda, para diagnostico.
+  FUNCTION falha(p_sqlcode IN NUMBER) RETURN CLOB IS
+    l_json CLOB;
+  BEGIN
+    l_json   := erro(500, 'ERRO_INTERNO', 'Erro interno', 'Nao foi possivel montar a resposta.');
+    g_codigo := 'ERRO_INTERNO ORA-' || LPAD(ABS(p_sqlcode), 5, '0');
+    RETURN l_json;
+  END falha;
+
   FUNCTION ultimo_status RETURN NUMBER IS
   BEGIN
     RETURN g_status;
   END ultimo_status;
+
+  PROCEDURE marcar(p_metodo IN VARCHAR2, p_rota IN VARCHAR2) IS
+  BEGIN
+    g_status := 200;
+    g_codigo := NULL;
+    g_metodo := p_metodo;
+    g_rota   := p_rota;
+    g_inicio := SYSTIMESTAMP;
+  END marcar;
+
+  PROCEDURE registrar(p_status IN NUMBER) IS
+    PRAGMA AUTONOMOUS_TRANSACTION;
+    l_int INTERVAL DAY(2) TO SECOND(6) := SYSTIMESTAMP - g_inicio;
+    l_ms  NUMBER;
+  BEGIN
+    l_ms := ROUND((EXTRACT(DAY FROM l_int) * 86400 + EXTRACT(HOUR FROM l_int) * 3600
+                 + EXTRACT(MINUTE FROM l_int) * 60 + EXTRACT(SECOND FROM l_int)) * 1000);
+    INSERT INTO log_api_chamadas (ts, metodo, rota, status, codigo, duracao_ms)
+    VALUES (f_now_brt, g_metodo, g_rota, p_status, g_codigo, l_ms);
+    COMMIT;
+  EXCEPTION
+    -- o registro nao pode derrubar a resposta, que ja foi escrita
+    WHEN OTHERS THEN
+      ROLLBACK;
+  END registrar;
 
   -- Cursor no formato AAAAMMDD-id: data de competencia e id do ultimo item da pagina.
   PROCEDURE decodificar_cursor(p_cursor IN VARCHAR2, p_data OUT DATE, p_id OUT NUMBER) IS
@@ -88,14 +129,15 @@ CREATE OR REPLACE PACKAGE BODY pkg_api_v1 AS
 
   FUNCTION lancamentos(p_cursor IN VARCHAR2 DEFAULT NULL,
                        p_limit  IN VARCHAR2 DEFAULT NULL) RETURN CLOB IS
-    l_demo NUMBER := demo_user_id;
-    l_lim  NUMBER := LEAST(GREATEST(NVL(TO_NUMBER(p_limit DEFAULT NULL ON CONVERSION ERROR), 25), 1), 100);
+    l_demo NUMBER;
+    l_lim  NUMBER := LEAST(GREATEST(NVL(TRUNC(TO_NUMBER(p_limit DEFAULT NULL ON CONVERSION ERROR)), 25), 1), 100);
     l_lim1 NUMBER;
     l_data DATE;
     l_id   NUMBER;
     l_json CLOB;
   BEGIN
-    g_status := 200;
+    marcar('GET', '/v1/lancamentos');
+    l_demo := demo_user_id;
     decodificar_cursor(p_cursor, l_data, l_id);
     -- uma linha a mais so para saber se existe proxima pagina
     l_lim1 := l_lim + 1;
@@ -150,20 +192,14 @@ CREATE OR REPLACE PACKAGE BODY pkg_api_v1 AS
         RETURN erro(400, 'CURSOR_INVALIDO', 'Cursor invalido',
                     'O parametro cursor deve vir no formato AAAAMMDD-id, como devolvido no campo next.');
       END IF;
-      RETURN erro(500, 'ERRO_INTERNO', 'Erro interno', 'Nao foi possivel montar a resposta.');
+      RETURN falha(SQLCODE);
   END lancamentos;
 
-  FUNCTION lancamento(p_id IN VARCHAR2) RETURN CLOB IS
+  -- Separado de lancamento para a criacao montar a resposta sem trocar a rota registrada.
+  FUNCTION lancamento_json(p_id IN NUMBER) RETURN CLOB IS
     l_demo NUMBER := demo_user_id;
-    l_id   NUMBER;
     l_json CLOB;
   BEGIN
-    g_status := 200;
-    l_id := TO_NUMBER(p_id DEFAULT NULL ON CONVERSION ERROR);
-    IF l_id IS NULL THEN
-      RETURN erro(400, 'ID_INVALIDO', 'Identificador invalido', 'O id do lancamento deve ser numerico.');
-    END IF;
-
     SELECT JSON_OBJECT('id'               VALUE l.id,
                        'tipo'             VALUE l.tipo,
                        'descricao'        VALUE l.descricao,
@@ -180,23 +216,37 @@ CREATE OR REPLACE PACKAGE BODY pkg_api_v1 AS
       FROM fin_lancamentos l
       JOIN cfg_categorias c ON c.id = l.categoria_id
       LEFT JOIN cfg_origens o ON o.id = l.origem_id
-     WHERE l.id = l_id
+     WHERE l.id = p_id
        AND l.user_id = l_demo
        AND l.ativo = 'S';
 
     RETURN l_json;
+  END lancamento_json;
+
+  FUNCTION lancamento(p_id IN VARCHAR2) RETURN CLOB IS
+    l_id NUMBER;
+  BEGIN
+    marcar('GET', '/v1/lancamentos/{id}');
+    l_id := TO_NUMBER(p_id DEFAULT NULL ON CONVERSION ERROR);
+    IF l_id IS NULL THEN
+      RETURN erro(400, 'ID_INVALIDO', 'Identificador invalido', 'O id do lancamento deve ser numerico.');
+    END IF;
+    RETURN lancamento_json(l_id);
   EXCEPTION
     -- Lancamento de outra conta tambem cai aqui: 404 nao revela se ele existe.
     WHEN NO_DATA_FOUND THEN
       RETURN erro(404, 'NAO_ENCONTRADO', 'Lancamento nao encontrado',
                   'Nao existe lancamento ' || l_id || ' na conta de demonstracao.');
+    WHEN OTHERS THEN
+      RETURN falha(SQLCODE);
   END lancamento;
 
   FUNCTION categorias RETURN CLOB IS
-    l_demo NUMBER := demo_user_id;
+    l_demo NUMBER;
     l_json CLOB;
   BEGIN
-    g_status := 200;
+    marcar('GET', '/v1/categorias');
+    l_demo := demo_user_id;
     -- user_id nulo e categoria global, vale para qualquer conta
     SELECT JSON_OBJECT(
              'items' VALUE NVL(JSON_ARRAYAGG(
@@ -215,17 +265,21 @@ CREATE OR REPLACE PACKAGE BODY pkg_api_v1 AS
        AND (user_id = l_demo OR user_id IS NULL);
 
     RETURN l_json;
+  EXCEPTION
+    WHEN OTHERS THEN
+      RETURN falha(SQLCODE);
   END categorias;
 
   FUNCTION resumo(p_de  IN VARCHAR2 DEFAULT NULL,
                   p_ate IN VARCHAR2 DEFAULT NULL) RETURN CLOB IS
-    l_demo NUMBER := demo_user_id;
+    l_demo NUMBER;
     l_hoje DATE   := f_now_brt;
     l_de   DATE;
     l_ate  DATE;
     l_json CLOB;
   BEGIN
-    g_status := 200;
+    marcar('GET', '/v1/resumo');
+    l_demo := demo_user_id;
     l_de  := TRUNC(l_hoje, 'MM');
     l_ate := LAST_DAY(TRUNC(l_hoje, 'MM'));
 
@@ -240,6 +294,10 @@ CREATE OR REPLACE PACKAGE BODY pkg_api_v1 AS
       IF l_ate IS NULL THEN
         RETURN erro(422, 'DATA_INVALIDA', 'Data invalida', 'O parametro ate deve vir como AAAA-MM-DD.');
       END IF;
+    END IF;
+    -- o filtro soma um dia ao fim do periodo
+    IF l_ate > DATE '9998-12-31' THEN
+      RETURN erro(422, 'DATA_INVALIDA', 'Data invalida', 'O parametro ate esta fora da faixa aceita.');
     END IF;
     IF l_ate < l_de THEN
       RETURN erro(422, 'PERIODO_INVALIDO', 'Periodo invalido', 'A data final e anterior a inicial.');
@@ -270,7 +328,23 @@ CREATE OR REPLACE PACKAGE BODY pkg_api_v1 AS
        AND data_competencia <  l_ate + 1;
 
     RETURN l_json;
+  EXCEPTION
+    WHEN OTHERS THEN
+      RETURN falha(SQLCODE);
   END resumo;
+
+  FUNCTION contrato RETURN CLOB IS
+    l_json CLOB;
+  BEGIN
+    marcar('GET', '/v1/openapi.json');
+    SELECT conteudo INTO l_json FROM cfg_api_contrato WHERE versao = 'v1';
+    RETURN l_json;
+  EXCEPTION
+    WHEN NO_DATA_FOUND THEN
+      RETURN erro(404, 'CONTRATO_AUSENTE', 'Contrato nao carregado', 'O contrato da v1 nao esta na base.');
+    WHEN OTHERS THEN
+      RETURN falha(SQLCODE);
+  END contrato;
 
   PROCEDURE criar_lancamento(p_body     IN  CLOB,
                              p_idem_key IN  VARCHAR2,
@@ -278,20 +352,24 @@ CREATE OR REPLACE PACKAGE BODY pkg_api_v1 AS
                              p_location OUT VARCHAR2,
                              p_replay   OUT VARCHAR2,
                              p_json     OUT CLOB) IS
-    l_demo    NUMBER := demo_user_id;
+    l_demo    NUMBER;
     l_valido  NUMBER;
-    l_tipo    VARCHAR2(10);
-    l_desc    VARCHAR2(255);
+    -- lidos sem limite de tamanho: RETURNING menor devolve nulo em vez de erro e o dado some
+    l_tipo    VARCHAR2(32767);
+    l_desc    VARCHAR2(32767);
+    l_forma   VARCHAR2(32767);
+    l_caixa   VARCHAR2(32767);
+    l_obs     CLOB;
     l_valor   NUMBER;
     l_dtcomp  DATE;
     l_dtcaixa DATE;
     l_cat     NUMBER;
-    l_forma   VARCHAR2(20);
-    l_obs     VARCHAR2(2000);
     l_id      NUMBER;
     l_usadas  NUMBER;
     l_cat_ok  NUMBER;
   BEGIN
+    marcar('POST', '/v1/ingest/lancamentos');
+    l_demo     := demo_user_id;
     p_replay   := 'false';
     p_location := NULL;
 
@@ -319,7 +397,7 @@ CREATE OR REPLACE PACKAGE BODY pkg_api_v1 AS
       p_replay   := 'true';
       p_status   := 200;
       p_location := '../lancamentos/' || l_id;
-      p_json     := lancamento(TO_CHAR(l_id));
+      p_json     := lancamento_json(l_id);
       RETURN;
     EXCEPTION
       WHEN NO_DATA_FOUND THEN NULL;
@@ -345,16 +423,16 @@ CREATE OR REPLACE PACKAGE BODY pkg_api_v1 AS
       RETURN;
     END IF;
 
-    l_tipo    := JSON_VALUE(p_body, '$.tipo'             RETURNING VARCHAR2(10));
-    l_desc    := JSON_VALUE(p_body, '$.descricao'        RETURNING VARCHAR2(255));
+    l_tipo    := JSON_VALUE(p_body, '$.tipo'             RETURNING VARCHAR2(32767));
+    l_desc    := JSON_VALUE(p_body, '$.descricao'        RETURNING VARCHAR2(32767));
     l_valor   := JSON_VALUE(p_body, '$.valor'            RETURNING NUMBER);
     l_cat     := JSON_VALUE(p_body, '$.categoria_id'     RETURNING NUMBER);
-    l_forma   := JSON_VALUE(p_body, '$.forma_pagamento'  RETURNING VARCHAR2(20));
-    l_obs     := JSON_VALUE(p_body, '$.observacoes'      RETURNING VARCHAR2(2000));
+    l_forma   := JSON_VALUE(p_body, '$.forma_pagamento'  RETURNING VARCHAR2(32767));
+    l_obs     := JSON_VALUE(p_body, '$.observacoes'      RETURNING CLOB);
+    l_caixa   := JSON_VALUE(p_body, '$.data_caixa'       RETURNING VARCHAR2(32767));
     l_dtcomp  := TO_DATE(JSON_VALUE(p_body, '$.data_competencia' RETURNING VARCHAR2(10))
                          DEFAULT NULL ON CONVERSION ERROR, 'YYYY-MM-DD');
-    l_dtcaixa := TO_DATE(JSON_VALUE(p_body, '$.data_caixa' RETURNING VARCHAR2(10))
-                         DEFAULT NULL ON CONVERSION ERROR, 'YYYY-MM-DD');
+    l_dtcaixa := TO_DATE(l_caixa DEFAULT NULL ON CONVERSION ERROR, 'YYYY-MM-DD');
 
     IF l_tipo IS NULL OR l_tipo NOT IN ('R', 'DPF', 'DPJ') THEN
       p_json := erro(422, 'TIPO_INVALIDO', 'Tipo invalido',
@@ -367,14 +445,31 @@ CREATE OR REPLACE PACKAGE BODY pkg_api_v1 AS
       p_status := 422;
       RETURN;
     END IF;
-    IF l_valor IS NULL OR l_valor <= 0 THEN
-      p_json := erro(422, 'VALOR_INVALIDO', 'Valor invalido', 'O campo valor deve ser um numero maior que zero.');
+    IF LENGTH(l_desc) > 255 THEN
+      p_json := erro(422, 'DESCRICAO_LONGA', 'Descricao longa', 'O campo descricao aceita no maximo 255 caracteres.');
+      p_status := 422;
+      RETURN;
+    END IF;
+    -- a coluna e NUMBER(14,2)
+    IF l_valor IS NULL OR l_valor <= 0 OR l_valor >= 1e12 THEN
+      p_json := erro(422, 'VALOR_INVALIDO', 'Valor invalido',
+                     'O campo valor deve ser um numero maior que zero e menor que 1000000000000.');
       p_status := 422;
       RETURN;
     END IF;
     IF l_dtcomp IS NULL THEN
       p_json := erro(422, 'DATA_COMPETENCIA_INVALIDA', 'Data de competencia invalida',
                      'O campo data_competencia e obrigatorio e deve vir como AAAA-MM-DD.');
+      p_status := 422;
+      RETURN;
+    END IF;
+    IF l_caixa IS NOT NULL AND l_dtcaixa IS NULL THEN
+      p_json := erro(422, 'DATA_CAIXA_INVALIDA', 'Data de caixa invalida', 'O campo data_caixa deve vir como AAAA-MM-DD.');
+      p_status := 422;
+      RETURN;
+    END IF;
+    IF DBMS_LOB.GETLENGTH(l_obs) > 2000 THEN
+      p_json := erro(422, 'OBSERVACOES_LONGA', 'Observacoes longas', 'O campo observacoes aceita no maximo 2000 caracteres.');
       p_status := 422;
       RETURN;
     END IF;
@@ -411,7 +506,7 @@ CREATE OR REPLACE PACKAGE BODY pkg_api_v1 AS
         p_data_competencia => l_dtcomp,
         p_data_caixa       => l_dtcaixa,
         p_forma_pagamento  => l_forma,
-        p_observacoes      => l_obs,
+        p_observacoes      => DBMS_LOB.SUBSTR(l_obs, 2000, 1),
         p_external_id      => p_idem_key,
         p_external_source  => c_fonte,
         p_id               => l_id);
@@ -428,13 +523,20 @@ CREATE OR REPLACE PACKAGE BODY pkg_api_v1 AS
         p_replay   := 'true';
         p_status   := 200;
         p_location := '../lancamentos/' || l_id;
-        p_json     := lancamento(TO_CHAR(l_id));
+        p_json     := lancamento_json(l_id);
         RETURN;
     END;
 
     p_status   := 201;
     p_location := '../lancamentos/' || l_id;
-    p_json     := lancamento(TO_CHAR(l_id));
+    p_json     := lancamento_json(l_id);
+  EXCEPTION
+    WHEN OTHERS THEN
+      ROLLBACK;
+      p_replay   := 'false';
+      p_location := NULL;
+      p_status   := 500;
+      p_json     := falha(SQLCODE);
   END criar_lancamento;
 
   PROCEDURE escrever(p_json IN CLOB) IS
@@ -454,6 +556,7 @@ CREATE OR REPLACE PACKAGE BODY pkg_api_v1 AS
                               ELSE 'application/json' END, FALSE);
     owa_util.http_header_close;
     escrever(p_json);
+    registrar(g_status);
   END responder;
 
   PROCEDURE responder_criacao(p_json     IN CLOB,
@@ -473,6 +576,7 @@ CREATE OR REPLACE PACKAGE BODY pkg_api_v1 AS
     END IF;
     owa_util.http_header_close;
     escrever(p_json);
+    registrar(p_status);
   END responder_criacao;
 
 END pkg_api_v1;
