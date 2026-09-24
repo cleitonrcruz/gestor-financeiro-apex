@@ -36,7 +36,7 @@
 - Autenticação própria em `PKG_AUTH`: hash com salt, bloqueio por tentativas, expiração de senha e "manter conectado" com revogação.
 - IP e navegador de cada acesso lidos de `X-Forwarded-For` e `User-Agent`, porque atrás do balanceador da OCI o `sys_context` devolve sempre o mesmo endereço.
 - PWA com fila offline em IndexedDB. Um índice único em `external_id` impede que o reenvio duplique lançamentos ([`pwa/`](pwa/)).
-- Tooltip feito como plug-in de Dynamic Action, com cores do Universal Theme ([`apex/plugin/`](apex/plugin/)).
+- Tooltip feito como plug-in de Dynamic Action, com cores do Universal Theme ([`apex/plugin/`](apex/plugin/)). A versão portátil, que instala em qualquer aplicação a partir do APEX 24.2, virou repositório próprio: [oracle-apex-tooltip](https://github.com/cleitonrcruz/oracle-apex-tooltip).
 - Regra de negócio toda em package. Nenhum processo de página faz CRUD.
 
 ## API REST

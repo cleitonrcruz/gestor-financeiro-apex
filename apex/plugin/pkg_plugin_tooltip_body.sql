@@ -61,7 +61,7 @@ CREATE OR REPLACE PACKAGE BODY       pkg_plugin_tooltip AS
 
     l_css :=
       '.gftip{position:fixed;z-index:2000;max-width:' || TO_CHAR(l_largura, 'FM999999') || 'px;min-width:200px;'
-      || 'background:var(--ut-component-background-color,#fff);color:var(--ut-component-text-color,#2c2c2a);'
+      || 'background:var(--ut-component-background-color,#fff);color:var(--ut-component-text-default-color,#2c2c2a);'
       || 'border:1px solid var(--ut-component-border-color,rgba(16,24,40,.10));'
       || 'border-radius:10px;overflow:hidden;padding:14px 18px 14px 23px;'
       || 'box-shadow:0 14px 34px -10px rgba(16,24,40,.24),0 3px 8px -3px rgba(16,24,40,.12);'
