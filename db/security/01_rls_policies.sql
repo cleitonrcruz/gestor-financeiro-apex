@@ -68,7 +68,7 @@ begin
     object_name     => 'CFG_CATEGORIAS',
     policy_name     => 'P_CFG_CATEGORIAS_USER',
     function_schema => 'ADMIN',
-    policy_function => 'PKG_RLS.F_RLS_USER_OR_GLOBAL',
+    policy_function => 'PKG_RLS.F_RLS_USER_OWNED',
     statement_types => 'SELECT, INSERT, UPDATE, DELETE',
     update_check    => TRUE);
 end;

@@ -85,7 +85,7 @@ curl -i -X POST https://gd9477458323ab8-gestorfin.adb.sa-saopaulo-1.oracleclouda
   -H "Content-Type: application/json" \
   -H "Idempotency-Key: $CHAVE" \
   -d '{"tipo":"DPF","descricao":"Assinatura de streaming","valor":39.9,
-       "data_competencia":"2026-09-20","categoria_id":9}'
+       "data_competencia":"2026-09-20","categoria_id":219}'
 ```
 
 <p align="justify">Executando o último comando duas vezes no mesmo terminal, a primeira chamada responde <code>201</code> e a segunda <code>200</code> com <code>Idempotent-Replay: true</code>, devolvendo o lançamento já gravado mesmo que o corpo enviado seja outro. A unicidade é garantida por um índice único funcional sobre <code>external_id</code>, restrito às linhas gravadas pela API, no mesmo modelo do índice usado pela fila offline do PWA.</p>

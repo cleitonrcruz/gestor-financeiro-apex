@@ -247,7 +247,6 @@ CREATE OR REPLACE PACKAGE BODY pkg_api_v1 AS
   BEGIN
     marcar('GET', '/v1/categorias');
     l_demo := demo_user_id;
-    -- user_id nulo e categoria global, vale para qualquer conta
     SELECT JSON_OBJECT(
              'items' VALUE NVL(JSON_ARRAYAGG(
                                  JSON_OBJECT('id'   VALUE id,
@@ -262,7 +261,7 @@ CREATE OR REPLACE PACKAGE BODY pkg_api_v1 AS
       INTO l_json
       FROM cfg_categorias
      WHERE ativo = 'S'
-       AND (user_id = l_demo OR user_id IS NULL);
+       AND user_id = l_demo;
 
     RETURN l_json;
   EXCEPTION
@@ -487,7 +486,7 @@ CREATE OR REPLACE PACKAGE BODY pkg_api_v1 AS
      WHERE id = l_cat
        AND ativo = 'S'
        AND tipo = l_tipo
-       AND (user_id = l_demo OR user_id IS NULL);
+       AND user_id = l_demo;
     IF l_cat IS NULL OR l_cat_ok = 0 THEN
       p_json := erro(422, 'CATEGORIA_INVALIDA', 'Categoria invalida',
                      'A categoria informada nao existe para a conta de demonstracao ou nao e do tipo ' ||

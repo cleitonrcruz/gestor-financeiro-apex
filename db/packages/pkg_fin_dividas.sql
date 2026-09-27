@@ -141,7 +141,7 @@ BEGIN
     INTO l_concl, l_dtconcl, l_uid, l_tot
     FROM admin.fin_dividas WHERE id = p_id;
   IF l_concl = 'S' AND l_dtconcl IS NOT NULL THEN
-    l_cat := admin.f_categoria_default_divida(p_tipo);
+    l_cat := admin.f_categoria_default_divida(p_tipo, l_uid);
     FOR rec IN (SELECT pa.id parcela_id, pa.numero, pa.valor, pa.data_vencimento
                   FROM admin.fin_dividas_parcelas pa
                  WHERE pa.divida_id = p_id AND pa.lancamento_id IS NULL
@@ -184,7 +184,7 @@ l_lanc_id  NUMBER;
 l_descr    VARCHAR2(800);
 BEGIN
 SELECT * INTO l_divida FROM admin.fin_dividas WHERE id = p_divida_id;
-l_cat_id := admin.f_categoria_default_divida(l_divida.tipo);
+l_cat_id := admin.f_categoria_default_divida(l_divida.tipo, l_divida.user_id);
 
 FOR rec IN (
   SELECT id AS parcela_id, numero, valor, data_vencimento

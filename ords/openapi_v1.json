@@ -245,12 +245,12 @@
                 "example": {
                   "items": [
                     {
-                      "id": 9,
+                      "id": 219,
                       "nome": "Lazer",
                       "tipo": "DPF"
                     },
                     {
-                      "id": 2,
+                      "id": 212,
                       "nome": "Pró-labore",
                       "tipo": "R"
                     }
@@ -417,7 +417,7 @@
                 "descricao": "Assinatura de streaming",
                 "valor": 39.9,
                 "data_competencia": "2026-09-21",
-                "categoria_id": 9,
+                "categoria_id": 219,
                 "forma_pagamento": "CREDITO_VISTA"
               }
             }

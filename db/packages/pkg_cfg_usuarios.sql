@@ -134,6 +134,11 @@ CREATE OR REPLACE PACKAGE BODY         "PKG_CFG_USUARIOS" AS
      NVL(TO_NUMBER(v('G_USER_ID') DEFAULT NULL ON CONVERSION ERROR), NULL),
      JSON_OBJECT('role' VALUE NVL(p_role,'USER'),'ativo' VALUE NVL(p_ativo,'S') RETURNING JSON));
 
+   -- Usuario novo comeca com a lista padrao de categorias, que passa a ser dele.
+   BEGIN
+     pkg_cfg_categorias.copiar_padrao_async(p_id);
+   EXCEPTION WHEN OTHERS THEN apex_debug.warn('pkg_cfg_usuarios: copiar_padrao_async falhou: %s', SQLERRM); END;
+
    BEGIN
      l_ph := JSON_OBJECT('USUARIO_NOME' VALUE NVL(p_nome,l_email_lc),'USERNAME' VALUE l_username_uc,'SENHA_PROVISORIA' VALUE p_senha_provisoria,'LINK' VALUE NVL(admin.f_app_pref('app_base_url'),'') || c_link_path RETURNING JSON);
      l_ph_clob := JSON_SERIALIZE(l_ph RETURNING CLOB);

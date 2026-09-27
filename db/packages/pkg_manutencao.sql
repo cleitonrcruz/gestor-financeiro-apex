@@ -152,6 +152,10 @@ CREATE OR REPLACE PACKAGE BODY       pkg_manutencao AS
     DELETE FROM admin.cfg_origens WHERE nome LIKE 'TEST_S%';
     p_origens := SQL%ROWCOUNT;
 
+    DELETE FROM admin.cfg_categorias
+     WHERE user_id IN (SELECT id FROM admin.cfg_usuarios_autorizados WHERE email LIKE 'test_%@dummy.local');
+    p_categorias := p_categorias + SQL%ROWCOUNT;
+
     DELETE FROM admin.cfg_usuarios_autorizados WHERE email LIKE 'test_%@dummy.local';
     p_usuarios := SQL%ROWCOUNT;
 
