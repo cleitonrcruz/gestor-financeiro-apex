@@ -29,8 +29,8 @@ END pkg_cfg_categorias;
 /
 
 CREATE OR REPLACE PACKAGE BODY         "PKG_CFG_CATEGORIAS" AS
--- Cada categoria e de um usuario so. O filtro por usuario vai escrito em cada consulta,
--- porque a conta ADMIN, que roda o app, e isenta do RLS.
+-- Cada categoria e de um usuario so. Nas telas do APEX a politica de RLS filtra e barra gravacao
+-- de categoria de outro usuario; no SQLcl e nos jobs a conta ADMIN e isenta dela.
 
   PROCEDURE inserir(p_user_id IN NUMBER, p_nome IN VARCHAR2, p_tipo IN VARCHAR2,
                     p_ativo IN VARCHAR2 DEFAULT 'S', p_id OUT NUMBER) IS
@@ -90,8 +90,8 @@ CREATE OR REPLACE PACKAGE BODY         "PKG_CFG_CATEGORIAS" AS
      ORDER BY p.id;
   END copiar_padrao;
 
-  -- O cadastro roda na sessao de quem cadastra; em job, sem sessao APEX, nenhuma politica de
-  -- RLS filtra a gravacao para o usuario novo.
+  -- O cadastro de usuario roda na sessao APEX do admin, onde o RLS barraria gravar categoria de
+  -- outro usuario. O job roda sem sessao APEX, como ADMIN, e a politica nao filtra.
   PROCEDURE copiar_padrao_async(p_user_id IN NUMBER) IS
   BEGIN
     dbms_scheduler.create_job(
